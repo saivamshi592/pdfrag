@@ -11,3 +11,5 @@ local.settings.json
 # OS
 .DS_Store
 Thumbs.db
+
+.venv

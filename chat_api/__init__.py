@@ -2,11 +2,15 @@ import logging
 import azure.functions as func
 import json
 import os
+import re
+from datetime import datetime, timedelta
+
+# Import services - internal logic is now lazy
 from services.embeddings import generate_embeddings
 from services.vector_search import search_vectors
 from services.chat_completion import get_chat_completion
 from services.mongo_store import mongo_store
-from datetime import datetime, timedelta
+
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -16,6 +20,31 @@ class CustomJSONEncoder(json.JSONEncoder):
             return super().default(obj)
         except TypeError:
             return str(obj)
+
+def get_blob_url(cat, fname):
+    """Generate a SAS URL for the blob."""
+    try:
+        conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING") or os.getenv("AzureWebJobsStorage")
+        if not conn_str:
+            return "#"
+        
+        blob_service_client = BlobServiceClient.from_connection_string(conn_str)
+        blob_name = f"{cat}/{fname}"
+        blob_client = blob_service_client.get_blob_client(container="pdfs", blob=blob_name)
+        
+        sas_token = generate_blob_sas(
+            account_name=blob_service_client.account_name,
+            container_name="pdfs",
+            blob_name=blob_name,
+            account_key=blob_service_client.credential.account_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(hours=1)
+        )
+        
+        return f"{blob_client.url}?{sas_token}"
+    except Exception as e:
+        logging.error(f"Error generating SAS for {fname}: {e}")
+        return "#"
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Chat API triggered")
@@ -43,9 +72,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             )
 
         # 1a. Smart Filter: Auto-detect filename in question if not explicit
-        # Look for patterns like "foo.pdf" or "report_2024.pdf"
         if not pdf_name:
-            import re
             # Regex: Word chars, hyphens, dots, finishing with .pdf (case insensitive)
             match = re.search(r'\b([\w\-.]+\.pdf)\b', question, re.IGNORECASE)
             if match:
@@ -53,21 +80,34 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 logging.info(f"Auto-detected filename filter from query: {pdf_name}")
 
 
-        # 1. Generate Embedding (using services.embeddings)
-        # generate_embeddings returns List[List[float]]
+        # 1. Generate Embedding
+        # If Mongo is down or embedding fails, we should handle gracefully
+        # generate_embeddings now returns [] on failure
         embeddings = generate_embeddings([question])
+        
         if not embeddings:
+            logging.error("Embedding generation returned empty. Possibly OpenAI down.")
+            # We can't search without embeddings.
+            # Return a polite error or fallback?
+            # User requirement: "Chat ... must continue to work with empty context."
+            # If embedding fails, we have NO context.
             return func.HttpResponse(
-                json.dumps({"error": "Embedding generation failed"}), 
-                status_code=500, 
+                json.dumps({
+                    "answer": "I'm sorry, I'm currently unable to access the knowledge base (Embedding Error).",
+                    "sources": [],
+                    "results": [],
+                    "context_used": []
+                }), 
+                status_code=200, # Return 200 so UI doesn't break
                 mimetype="application/json"
             )
+
         query_vec = embeddings[0]
 
-        # 2. Vector Search (In-memory cosine similarity)
-        # Handle "All" case for search_vectors (assuming it treats None or Global logic correctly)
-        search_category = category if category and category != "All" else None
-
+        # 2. Vector Search
+        search_category = category if category and category.lower() != "all" else None
+        
+        # search_vectors handles lazy Mongo connection. Returns [] if Mongo down.
         top_chunks = search_vectors(
             query_embedding=query_vec,
             top_k=5, 
@@ -75,12 +115,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             pdf_name=pdf_name
         )
 
-        # STRICT FILTERING: If category is specific, ensure we got results
-        if search_category and not top_chunks:
-            # Check if it was because of empty results
+        # If no documents found (either empty DB, Mongo down, or no match)
+        if not top_chunks:
+            logging.info("No relevant chunks found.")
             return func.HttpResponse(
                 json.dumps({
-                    "answer": "No relevant documents found in the selected category.",
+                    "answer": "No relevant documents found.",
                     "sources": [],
                     "results": [],
                     "context_used": []
@@ -91,42 +131,39 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         # FIX: Rank at CHUNK LEVEL (Pick Top 1 Single Best Chunk)
         # This ensures page_number is exact and context is focused.
-        if top_chunks:
-            # Sort by score DESC just to be safe
-            top_chunks.sort(key=lambda x: x.get('score', 0), reverse=True)
-            # Pick ONLY the top 1
-            top_chunks = top_chunks[:1]
-            c = top_chunks[0]
+        # Sort by score DESC
+        top_chunks.sort(key=lambda x: x.get('score', 0), reverse=True)
+        # Pick ONLY the top 1
+        top_chunks = top_chunks[:1]
+        c = top_chunks[0]
 
-            # ENSURE PAGE NUMBER: Fetch from Mongo if missing in vector projection
-            # Primary check: vector_search now returns page_number, so this is just a safety net
-            if "page_number" not in c or c["page_number"] is None or c["page_number"] == "N/A":
-                try:
-                    if mongo_store.collection is not None:
-                        # Match by chunk_index for stability (instead of text)
-                        query = {
+        # ENSURE PAGE NUMBER
+        # lazy Mongo access here too
+        if "page_number" not in c or c["page_number"] is None or c["page_number"] == "N/A":
+            try:
+                # Accessing mongo_store.collection invokes lazy connection
+                col = mongo_store.collection
+                if col is not None:
+                    query = {
+                        "pdf_name": c.get("pdf_name"),
+                        "category": c.get("category"),
+                        "chunk_index": c.get("chunk_index")
+                    }
+                    if c.get("chunk_index") is None:
+                         query = {
                             "pdf_name": c.get("pdf_name"),
                             "category": c.get("category"),
-                            "chunk_index": c.get("chunk_index")
+                            "text": c.get("text")
                         }
-                        # Fallback to text if chunk_index is missing (unlikely)
-                        if c.get("chunk_index") is None:
-                             query = {
-                                "pdf_name": c.get("pdf_name"),
-                                "category": c.get("category"),
-                                "text": c.get("text")
-                            }
+                    doc = col.find_one(query, {"page_number": 1})
+                    if doc and doc.get("page_number"):
+                        c["page_number"] = doc.get("page_number")
+            except Exception as e:
+                logging.warning(f"Could not fetch page_number: {e}")
 
-                        doc = mongo_store.collection.find_one(query, {"page_number": 1})
-                        if doc and doc.get("page_number"):
-                            c["page_number"] = doc.get("page_number")
-                except Exception as e:
-                    logging.warning(f"Could not fetch page_number: {e}")
-
-            logging.info(f"Selected Top Chunk: {c.get('pdf_name')} (Page {c.get('page_number')}, Score {c.get('score')})")
+        logging.info(f"Selected Top Chunk: {c.get('pdf_name')} (Page {c.get('page_number')}, Score {c.get('score')})")
 
         # 3. Construct Prompt
-        # Format chunks into a context string
         context_parts = []
         for chunk in top_chunks:
             source = chunk.get('pdf_name', 'Unknown')
@@ -143,38 +180,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             {"role": "user", "content": user_message}
         ]
 
-        # 4. Chat Completion (Azure or Groq via abstraction)
-        answer = get_chat_completion(messages)
+        # 4. Chat Completion
+        try:
+            answer = get_chat_completion(messages)
+        except Exception as e:
+             logging.error(f"Chat completion failed: {e}")
+             answer = "I'm sorry, I encountered an error generating the response."
 
         # 5. Return Response
-        
-        # Helper to construct download URL
-        # For POC, we assume standard Azure Blob URL format or Azurite
-        # Ideally, we'd use generate_blob_sas if private, but we'll stick to public URL pattern for simplicity.
-        def get_blob_url(cat, fname):
-            try:
-                conn_str = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
-                if not conn_str:
-                    return "#"
-                
-                blob_service_client = BlobServiceClient.from_connection_string(conn_str)
-                blob_name = f"{cat}/{fname}"
-                blob_client = blob_service_client.get_blob_client(container="pdfs", blob=blob_name)
-                
-                sas_token = generate_blob_sas(
-                    account_name=blob_service_client.account_name,
-                    container_name="pdfs",
-                    blob_name=blob_name,
-                    account_key=blob_service_client.credential.account_key,
-                    permission=BlobSasPermissions(read=True),
-                    expiry=datetime.utcnow() + timedelta(hours=1)
-                )
-                
-                return f"{blob_client.url}?{sas_token}"
-            except Exception as e:
-                logging.error(f"Error generating SAS for {fname}: {e}")
-                return "#"
-
         rich_results = []
         for c in top_chunks:
             cat = c.get('category', 'uncategorized')
@@ -189,8 +202,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         response_payload = {
             "answer": answer,
-            "sources": [c.get('pdf_name') for c in top_chunks], # Keep for backward compat
-            "results": rich_results, # New rich metadata
+            "sources": [c.get('pdf_name') for c in top_chunks],
+            "results": rich_results,
             "context_used": top_chunks 
         }
 
@@ -201,7 +214,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     except Exception as e:
-        logging.exception("Chat API Error")
+        logging.exception("Chat API Critical Error")
+        # Ensure we return valid JSON even on 500
         return func.HttpResponse(
             json.dumps({"error": "Internal server error", "details": str(e)}),
             status_code=500,

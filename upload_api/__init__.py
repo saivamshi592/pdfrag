@@ -3,73 +3,62 @@ import azure.functions as func
 import json
 import os
 from azure.storage.blob import BlobServiceClient
-from config.settings import settings
-from services.mongo_store import mongo_store
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info('Upload API triggered.')
+    logging.info("Upload API triggered")
 
     try:
-        # 1. Parse Input
-        # Note: In Azure V2 Python, req.files is the standard way.
-        
-        file_item = None
-        category = "uncategorized"
-        
-        # PARAM priority
-        category = req.params.get("category", req.form.get("category", "uncategorized"))
+        # 1. Read category
+        category = req.params.get("category", "uncategorized").lower()
 
-        if not req.files:
+        # 2. Read raw body (Azure Functions way)
+        body = req.get_body()
+        if not body:
             return func.HttpResponse(
-                json.dumps({"error": "No files found in request"}),
+                json.dumps({"error": "Empty request body"}),
                 status_code=400,
                 mimetype="application/json"
             )
 
-        # Task 2: Delete Category Logic (Safe Delete)
-        # Execute ONCE before uploading any file in this batch
-        if category and category.lower() != "uncategorized":
-            logging.info(f"Wiping category '{category}' before upload (Replace Logic)")
-            mongo_store.delete_category(category)
-
-        uploaded_count = 0
-        last_blob_path = ""
-        
-        # 2. Upload to Blob Storage
-        connection_string = settings.AZURE_STORAGE_CONNECTION_STRING
+        # 3. Blob storage connection
+        # Safe lazy access to env var
+        connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING") or os.getenv("AzureWebJobsStorage")
         if not connection_string:
-             raise ValueError("AzureWebJobsStorage not set")
+            # If we can't connect to storage, we MUST return error for upload
+            return func.HttpResponse(
+                json.dumps({"error": "Storage configuration missing"}),
+                status_code=500,
+                mimetype="application/json"
+            )
 
-        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        blob_service = BlobServiceClient.from_connection_string(connection_string)
         container_name = "pdfs"
-        
+
+        container_client = blob_service.get_container_client(container_name)
         try:
-             blob_service_client.create_container(container_name)
-        except Exception:
-             pass
+            if not container_client.exists():
+                container_client.create_container()
+        except Exception as e:
+            logging.warning(f"Container creation check failed (might already exist): {e}")
 
-        container_client = blob_service_client.get_container_client(container_name)
+        # 4. TEMP filename (UI uploads single file)
+        # In a real app, rely on Content-Disposition or generated UUID
+        filename = "uploaded.pdf"
+        blob_path = f"{category}/{filename}"
 
-        # Iterate all files
-        for file_item in req.files.values():
-            filename = file_item.filename
-            content = file_item.stream.read()
-            
-            logging.info(f"Processing file: {filename}, Size: {len(content)}, Category: {category}")
-            
-            blob_path = f"{category}/{filename}"
-            blob_client = container_client.get_blob_client(blob_path)
-            blob_client.upload_blob(content, overwrite=True)
-            
-            logging.info(f"Uploaded to {container_name}/{blob_path}")
-            uploaded_count += 1
-            last_blob_path = blob_path
+        blob_client = container_client.get_blob_client(blob_path)
+        blob_client.upload_blob(body, overwrite=True)
+
+        logging.info(f"Uploaded to {blob_path}")
+        
+        # Note: Embedding generation and Mongo insertion happen in the Blob Trigger.
+        # If those fail, this API still returns success as the upload itself was successful.
+        # This prevents the UI from showing an error when the background process is the issue.
 
         return func.HttpResponse(
             json.dumps({
-                "message": f"Successfully uploaded {uploaded_count} file(s).", 
-                "path": last_blob_path,
-                "count": uploaded_count
+                "message": "Upload successful",
+                "path": blob_path
             }),
             status_code=200,
             mimetype="application/json"

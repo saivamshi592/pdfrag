@@ -10,3 +10,5 @@ __azurite_db_*
 
 # Logs
 *.log
+
+.venv

@@ -1,39 +1,63 @@
+
 import os
 
 
-def _require_env(name: str, default=None):
-    value = os.environ.get(name, default)
-    if value is None:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
-
-
 class Settings:
-    # MongoDB / Cosmos
-    MONGO_URI = _require_env("MONGO_URI")
-    MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "PDFRag")
-    MONGO_COLLECTION_NAME = os.environ.get("MONGO_COLLECTION_NAME", "ghmdocuments")
+    @property
+    def MONGO_URI(self):
+        return os.getenv("MONGO_URI")
 
-    # Azure Storage
-    # Prefer explicit connection string if available, else fall back to Functions runtime string
-    AZURE_STORAGE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING") or os.environ.get("AzureWebJobsStorage")
+    @property
+    def MONGO_DB_NAME(self):
+        return os.getenv("MONGO_DB_NAME", "PDFRag")
 
-    # Azure OpenAI
-    AZURE_OPENAI_API_KEY = _require_env("AZURE_OPENAI_API_KEY")
-    AZURE_OPENAI_ENDPOINT = _require_env("AZURE_OPENAI_ENDPOINT")
-    AZURE_OPENAI_API_VERSION = _require_env("AZURE_OPENAI_API_VERSION")
-    AZURE_OPENAI_EMBEDDING_DEPLOYMENT = _require_env("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+    @property
+    def MONGO_COLLECTION_NAME(self):
+        return os.getenv("MONGO_COLLECTION_NAME", "ghmdocuments")
 
-    # Optional tuning
-    EMBEDDING_BATCH_SIZE = int(os.environ.get("EMBEDDING_BATCH_SIZE", "16"))
-    MAX_TOP_K = int(os.environ.get("MAX_TOP_K", "20"))
+    @property
+    def AZURE_STORAGE_CONNECTION_STRING(self):
+        return os.getenv("AZURE_STORAGE_CONNECTION_STRING") or os.getenv("AzureWebJobsStorage")
+
+    @property
+    def AZURE_OPENAI_API_KEY(self):
+        return os.getenv("AZURE_OPENAI_API_KEY")
+
+    @property
+    def AZURE_OPENAI_ENDPOINT(self):
+        return os.getenv("AZURE_OPENAI_ENDPOINT")
+
+    @property
+    def AZURE_OPENAI_API_VERSION(self):
+        return os.getenv("AZURE_OPENAI_API_VERSION", "2023-05-15")
+
+    @property
+    def AZURE_OPENAI_EMBEDDING_DEPLOYMENT(self):
+        return os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+
+    @property
+    def EMBEDDING_BATCH_SIZE(self):
+        return int(os.getenv("EMBEDDING_BATCH_SIZE", "16"))
+
+    @property
+    def MAX_TOP_K(self):
+        return int(os.getenv("MAX_TOP_K", "20"))
     
-    AZURE_OPENAI_CHAT_DEPLOYMENT = os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
+    @property
+    def AZURE_OPENAI_CHAT_DEPLOYMENT(self):
+        return os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
 
-    # LLM Provider Config
-    LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "azure").lower()
-    GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-    GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    @property
+    def LLM_PROVIDER(self):
+        return os.getenv("LLM_PROVIDER", "azure").lower()
+
+    @property
+    def GROQ_API_KEY(self):
+        return os.getenv("GROQ_API_KEY")
+
+    @property
+    def GROQ_MODEL(self):
+        return os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 
 settings = Settings()
