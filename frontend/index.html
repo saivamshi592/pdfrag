@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF RAG Chat</title>
+    <!-- Base tag ensures relative links work, but we use absolute paths for critics assets -->
+    <base href="/api/ui/">
+    <link rel="stylesheet" href="/api/ui/style.css">
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1>PDF RAG Chat</h1>
+            <p>Upload documents and ask questions powered by AI</p>
+        </header>
+
+        <!-- Accordion Item 1: Upload -->
+        <div class="accordion-item">
+            <div class="accordion-header" onclick="toggleAccordion(0)">
+                <h2>Data Ingestion</h2>
+                <span class="chevron">▼</span>
+            </div>
+            <div class="accordion-content active">
+                <div class="form-group">
+                    <label for="pdf-file">Select PDF File(s)</label>
+                    <input type="file" id="pdf-file" accept=".pdf" multiple>
+                    <p class="helper-text">You can upload one or multiple PDF files at once.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="upload-category">Target Category</label>
+                    <select id="upload-category">
+                        <option value="uncategorized">Uncategorized</option>
+                        <option value="maths">Maths</option>
+                        <option value="science">Science</option>
+                        <option value="history">History</option>
+                        <option value="manuals">Manuals</option>
+                    </select>
+                </div>
+
+                <button id="btn-upload">Upload Documents</button>
+                <div id="upload-status" class="status"></div>
+            </div>
+        </div>
+
+        <!-- Accordion Item 2: Manage (Delete) -->
+        <div class="accordion-item">
+            <div class="accordion-header" onclick="toggleAccordion(1)">
+                <h2>Manage Content</h2>
+                <span class="chevron">▼</span>
+            </div>
+            <div class="accordion-content">
+
+                <div class="danger-box" style="margin-top:0; border:none; background:none; padding:0;">
+                    <div
+                        style="margin-bottom: 20px; padding: 15px; background-color: #fffaf0; border: 1px solid #feebc8; border-radius: 6px;">
+                        <h4 style="margin: 0 0 10px 0; color: #c05621; font-size: 0.95rem;">⚠️ Content Deletion</h4>
+                        <p style="margin:0; font-size: 0.85rem; color: #7b341e;">
+                            Select a deletion mode below. This action removes data from both the search index and
+                            storage.
+                        </p>
+                    </div>
+
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="deleteOption" value="category" checked> Delete Entire Category
+                        </label>
+                        <label>
+                            <input type="radio" name="deleteOption" value="pdf"> Delete Specific PDF
+                        </label>
+                    </div>
+
+                    <!-- Option A: Delete Category -->
+                    <div id="del-opt-category">
+                        <div class="form-group">
+                            <label for="del-category-select">Select Category to Wipe</label>
+                            <select id="del-category-select" class="dynamic-cat-select">
+                                <option value="">-- Loading Categories... --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Option B: Delete Specific PDF -->
+                    <div id="del-opt-pdf" class="hidden">
+                        <div class="form-group">
+                            <label for="del-pdf-cat-select">1. Select Category</label>
+                            <select id="del-pdf-cat-select" class="dynamic-cat-select">
+                                <option value="">-- Loading Categories... --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="del-pdf-file-select">2. Select PDF</label>
+                            <select id="del-pdf-file-select" disabled>
+                                <option value="">(Select Category First)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button id="btn-execute-delete" class="btn-danger">Delete Selected Content</button>
+                    <div id="delete-status" class="status"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Accordion Item 3: Chat -->
+        <div class="accordion-item">
+            <div class="accordion-header" onclick="toggleAccordion(2)">
+                <h2>Chat Interface</h2>
+                <span class="chevron">▼</span>
+            </div>
+            <div class="accordion-content">
+                <div class="form-group">
+                    <label for="question">Your Question</label>
+                    <textarea id="question" placeholder="Ask something about your documents..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Context Scope</label>
+                    <select id="category">
+                        <option value="">All (Global Search)</option>
+                        <option value="maths">Maths</option>
+                        <option value="science">Science</option>
+                        <option value="history">History</option>
+                        <option value="manuals">Manuals</option>
+                    </select>
+                </div>
+
+                <button id="btn-ask">Send Message</button>
+                <div id="chat-status" class="status"></div>
+
+                <!-- Answer Area -->
+                <div id="answer-section" style="display: none; margin-top: 25px;">
+                    <div id="answer-content" class="answer-box"></div>
+                    <div id="answer-sources" class="answer-meta"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/api/ui/app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# Azure Functions local stuff
+.python_packages/
+__blobstorage__/
+__queuestorage__/
+local.settings.json
+
+# OS
+.DS_Store
+Thumbs.db
