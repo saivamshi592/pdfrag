@@ -27,7 +27,23 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 mimetype="application/json"
             )
 
-        pdfs = mongo_store.list_pdfs(category)
+        # FIX: Directly query collection instead of calling non-existent list_pdfs method
+        pdfs = []
+        collection = mongo_store.collection
+        
+        if collection is not None:
+            try:
+                # Retrieve unique PDF names for the given category
+                distinct_pdfs = collection.distinct("pdf_name", {"category": category})
+                # Filter out any None/Empty values and sort
+                pdfs = sorted([p for p in distinct_pdfs if p])
+            except Exception as db_err:
+                logging.error(f"Error querying MongoDB for PDFs: {db_err}")
+                # Fallback to empty list gracefully
+                pdfs = []
+        else:
+            logging.warning("MongoDB collection not available for listing PDFs.")
+            pdfs = []
         
         return func.HttpResponse(
             json.dumps({"category": category, "pdfs": pdfs}),
@@ -36,7 +52,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     except Exception as e:
-        logging.exception("List failed")
+        logging.exception("List API failed")
         return func.HttpResponse(
             json.dumps({"error": str(e)}),
             status_code=500,
