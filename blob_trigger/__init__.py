@@ -18,8 +18,7 @@ def main(myblob: func.InputStream):
     )
 
     try:
-        # myblob.name format:
-        # pdfs/{category}/{filename}
+        # myblob.name format: pdfs/{category}/{filename}
         path_parts = myblob.name.split("/")
 
         if len(path_parts) >= 3:
@@ -37,11 +36,10 @@ def main(myblob: func.InputStream):
             logging.warning("Blob is empty. Skipping processing.")
             return
 
-        # 2. Get Metadata (Year, Date) - Reusing existing service logic
-        # We treat 'text' here as temporary just for metadata extraction
+        # 2. Extract metadata (year/date)
         _, metadata = extract_text_and_metadata(pdf_bytes)
 
-        # 3. Page-by-Page Extraction & Chunking
+        # 3. Page-wise extraction & chunking
         all_chunks = []
         all_page_nums = []
 
@@ -51,16 +49,14 @@ def main(myblob: func.InputStream):
                 page_text = page.extract_text()
                 if not page_text or not page_text.strip():
                     continue
-                
-                # Chunk this page's text
-                page_sub_chunks = chunk_text(page_text)
-                if page_sub_chunks:
-                    all_chunks.extend(page_sub_chunks)
-                    # 1-based page number
-                    all_page_nums.extend([i + 1] * len(page_sub_chunks))
-        
+
+                page_chunks = chunk_text(page_text)
+                if page_chunks:
+                    all_chunks.extend(page_chunks)
+                    all_page_nums.extend([i + 1] * len(page_chunks))
+
         except Exception as pdf_err:
-            logging.error(f"Page extraction error: {pdf_err}")
+            logging.exception("PDF page extraction failed")
             return
 
         if not all_chunks:
@@ -73,24 +69,29 @@ def main(myblob: func.InputStream):
         embeddings = generate_embeddings(all_chunks)
 
         if len(embeddings) != len(all_chunks):
-            raise ValueError(
-                f"Embedding count mismatch: chunks={len(all_chunks)} embeddings={len(embeddings)}"
+            logging.error(
+                "Embedding mismatch: chunks=%d embeddings=%d",
+                len(all_chunks),
+                len(embeddings)
             )
+            return
 
-        # 5. Store in MongoDB (Custom insert to include page_num)
-        if mongo_store.collection is None:
-             logging.error("MongoDB collection not available.")
-             return
+        # 5. MongoDB operations (SAFE)
+        collection = mongo_store.collection
+        if collection is None:
+            logging.error("MongoDB collection not available. Skipping insert.")
+            return
 
-        # Clean old records for this PDF
+        # Remove existing chunks for same PDF
         mongo_store.delete_pdf(category, filename)
 
-        # Build documents with page_num
         documents = []
         year = metadata.get("year", 2025)
         date_str = metadata.get("date", "")
 
-        for idx, (txt, emb, p_num) in enumerate(zip(all_chunks, embeddings, all_page_nums)):
+        for idx, (txt, emb, p_num) in enumerate(
+            zip(all_chunks, embeddings, all_page_nums)
+        ):
             documents.append({
                 "category": category,
                 "pdf_name": filename,
@@ -103,9 +104,14 @@ def main(myblob: func.InputStream):
             })
 
         if documents:
-            mongo_store.collection.insert_many(documents)
-            logging.info("Successfully processed and stored PDF: %s with %d chunks (Page Level)", filename, len(documents))
+            collection.insert_many(documents)
+            logging.info(
+                "Stored PDF %s with %d chunks (page-level)",
+                filename,
+                len(documents)
+            )
 
     except Exception as exc:
-        logging.exception("Blob trigger failed: %s", exc)
+        logging.exception("Blob trigger failed")
+        # Re-raise so Azure logs it clearly (but logic bugs are now fixed)
         raise

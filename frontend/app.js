@@ -315,6 +315,13 @@ document.addEventListener('DOMContentLoaded', () => {
         answerSection.style.display = 'block';
         answerContent.textContent = data.answer || "No answer received.";
 
+        // Render MathJax if available
+        if (window.MathJax) {
+            window.MathJax.typesetPromise([answerContent]).then(() => {
+                // Formatting complete
+            }).catch((err) => console.error("MathJax error:", err));
+        }
+
         const results = data.results || [];
 
         if (results.length > 0) {
