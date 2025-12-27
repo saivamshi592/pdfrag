@@ -94,6 +94,32 @@ class MongoStore:
             logging.exception("Failed to fetch categories")
             return ["uncategorized"]
 
+    def get_last_uploaded_pdf(self) -> Optional[dict]:
+        """
+        Retrieves metadata of the most recently uploaded PDF using 'uploaded_at'.
+        Excludes explicit sort by _id.
+        """
+        col = self.collection
+        if col is None:
+            return None
+        
+        try:
+            # Sort by uploaded_at descending to get the newest document
+            # Fallback to _id if uploaded_at is missing (legacy docs)
+            doc = col.find_one({}, sort=[('uploaded_at', -1), ('_id', -1)])
+            
+            if doc:
+                return {
+                    "pdf_name": doc.get("pdf_name"),
+                    "category": doc.get("category", "uncategorized"),
+                    # Return canonical blob_path if present, else fallback
+                    "blob_path": doc.get("blob_path", f"{doc.get('category')}/{doc.get('pdf_name')}")
+                }
+            return None
+        except Exception:
+            logging.exception("Failed to get last PDF")
+            return None
+
 
 # Singleton instance
 mongo_store = MongoStore()

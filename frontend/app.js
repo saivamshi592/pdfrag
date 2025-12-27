@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('pdf-file');
     const uploadCategorySelect = document.getElementById('upload-category'); // New element
     const uploadStatus = document.getElementById('upload-status');
+    const newCategoryGroup = document.getElementById('new-category-group');
+    const newCategoryInput = document.getElementById('new-category-input');
 
     const btnAsk = document.getElementById('btn-ask');
     const txtQuestion = document.getElementById('question');
@@ -21,10 +23,91 @@ document.addEventListener('DOMContentLoaded', () => {
     const answerSources = document.getElementById('answer-sources');
 
 
+    // --- 0. Dynamic Category Loading ---
+    async function loadCategories() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/categories`);
+            if (!response.ok) return;
+
+            const data = await response.json();
+            const categories = data.categories || [];
+
+            // 1. Populate Upload Dropdown
+            // Keep "Uncategorized" and "New Category" logic
+            // We want: [Uncategorized, ...FetchedCats..., + Add New]
+            uploadCategorySelect.innerHTML = '';
+
+            // Fixed first option
+            const optUncat = document.createElement('option');
+            optUncat.value = "uncategorized";
+            optUncat.textContent = "Uncategorized";
+            uploadCategorySelect.appendChild(optUncat);
+
+            // Dynamic options
+            categories.forEach(cat => {
+                if (cat.toLowerCase() === "uncategorized") return; // skip if duplicate
+
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                uploadCategorySelect.appendChild(opt);
+            });
+
+            // Fixed last option
+            const optNew = document.createElement('option');
+            optNew.value = "new_category_option";
+            optNew.textContent = "+ Add New Category";
+            uploadCategorySelect.appendChild(optNew);
+
+
+            // 2. Populate Chat Dropdown
+            // We want: [All (Global), ...FetchedCats...]
+            selCategory.innerHTML = '';
+
+            const optAll = document.createElement('option');
+            optAll.value = "";
+            optAll.textContent = "All (Global Search)";
+            selCategory.appendChild(optAll);
+
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                selCategory.appendChild(opt);
+            });
+
+        } catch (err) {
+            console.error("Failed to load categories", err);
+        }
+    }
+
+    // Initial Load
+    loadCategories();
+
+    // Toggle "New Category" input
+    uploadCategorySelect.addEventListener('change', () => {
+        if (uploadCategorySelect.value === 'new_category_option') {
+            newCategoryGroup.style.display = 'block';
+            newCategoryInput.focus();
+        } else {
+            newCategoryGroup.style.display = 'none';
+        }
+    });
+
     // --- 1. Upload Logic (REAL) ---
     btnUpload.addEventListener('click', async () => {
         const files = fileInput.files;
-        const category = uploadCategorySelect ? uploadCategorySelect.value : "uncategorized";
+
+        // Determine category
+        let category = uploadCategorySelect ? uploadCategorySelect.value : "uncategorized";
+        if (category === 'new_category_option') {
+            const typedCat = newCategoryInput.value.trim();
+            if (!typedCat) {
+                showStatus(uploadStatus, 'Please enter a name for the new category.', 'error');
+                return;
+            }
+            category = typedCat; // Use the typed value
+        }
 
         if (files.length === 0) {
             showStatus(uploadStatus, 'Please select at least one PDF file.', 'error');
@@ -64,7 +147,24 @@ document.addEventListener('DOMContentLoaded', () => {
             showStatus(uploadStatus, result.message || 'Upload successful!', 'success');
 
             // Clear input
+            // Clear input
             fileInput.value = '';
+            newCategoryInput.value = '';
+
+            // If a new category was created, we need to refresh the list and select it
+            if (newCategoryGroup.style.display === 'block') {
+                newCategoryGroup.style.display = 'none'; // hide input
+
+                // Reload categories to reflect the new one in all dropdowns
+                await loadCategories();
+
+                // Select the newly added category in the dropdown
+                const options = Array.from(uploadCategorySelect.options);
+                const matchingOption = options.find(opt => opt.value.toLowerCase() === category.toLowerCase());
+                if (matchingOption) {
+                    uploadCategorySelect.value = matchingOption.value;
+                }
+            }
 
         } catch (err) {
             console.error(err);

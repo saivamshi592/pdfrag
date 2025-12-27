@@ -1,99 +1,122 @@
-# PDF RAG Application (Azure Functions + Python)
+# 🚀 Azure PDF RAG Application (v1.3)
 
-This project allows for ingesting PDFs from Azure Blob Storage, chunking and embedding them, storing vectors in Cosmos DB (MongoDB API), and querying them via an HTTP API.
+A serverless RAG (Retrieval-Augmented Generation) application built with **Azure Functions (Python)**. It ingests PDFs, creates embeddings using Azure OpenAI, stores them in MongoDB (Cosmos DB), and allows users to chat with their documents via a smart web interface.
 
-## Project Structure
+---
+
+## 📂 Project Structure
 
 ```
-pdfchatapp/
-├── blob_trigger/       # Triggered on PDF upload
-├── chat_api/           # HTTP API for RAG chat
-├── services/           # Business logic (PDF processing, embeddings, DB)
-├── config/             # Configuration management
-├── host.json           # Azure Functions host config
-├── local.settings.json # Local env vars (Git ignored usually)
-└── requirements.txt    # Python dependencies
+pdfrag1.0/
+├── blob_trigger/       # ⚡ Processes PDF uploads
+├── chat_api/           # 💬 Handles RAG queries
+├── upload_api/         # 📤 Handles File Uploads
+├── list_api/           # 📋 Lists PDFs/Categories
+├── delete_api/         # 🗑️ Deletes Data
+├── debug_api/          # 🏥 Diagnostics
+├── services/           # 🧠 Core Logic (Mongo, OpenAI, PDF)
+├── frontend/           # 🎨 UI (served via API)
+├── requirements.txt    # 📦 Python Dependencies
+└── host.json           # ⚙️ Host Config
 ```
 
-## Prerequisites
+---
 
-- Python 3.11
-- Azure Functions Core Tools v4
-- Azurite (for local storage emulation)
-- MongoDB / Cosmos DB connection string
+##  Architecture
 
-## Setup & Run
+1.  **Blob Trigger (`blob_trigger`)**:
+    -   Automatically triggers when a PDF is uploaded to the Azure Storage container `pdfs`.
+    -   Extracts text -> Chunks content -> Generates Embeddings -> Saves to MongoDB.
+    -   **Smart Logic**: Checks duplicates to avoid expensive reprocessing.
 
-1. **Create Virtual Environment:**
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate
-   ```
+2.  **API Services**:
+    -   **`chat_api`**: Handles user queries, retrieves relevant chunks from Mongo, and generates AI answers.
+    -   **`upload_api`**: Handles file uploads from the UI directly to Blob Storage.
+    -   **`list_api`**: Lists available categories and PDFs.
+    -   **`delete_api`**: Manages data cleanup (deletes chunks and blobs).
+    -   **`debug_api`**: Diagnostics tool to verify server health and dependency installation.
 
-2. **Install Dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+3.  **Frontend**:
+    -   Hosted at `/api/ui/index.html`.
+    -   Features: Chat interface, File Upload, Category Management, and "Self-Healing" capabilities.
 
-3. **Configure Environment:**
-   - Update `local.settings.json` with your real keys if needed (MongoDB, OpenAI).
-   - Ensure Azurite is running.
+---
 
-4. **Run Locally:**
-   ```bash
-   func start
-   ```
+## 🛠️ Prerequisites
 
-## Functions
+-   **Python 3.11** (Strictly required for Azure compatibility)
+-   **Azure Functions Core Tools v4**
+-   **Azure Subscription** (Function App, Blob Storage, Azure OpenAI, Cosmos DB/MongoDB)
+-   **VS Code** with Azure Functions Extension
 
-### 1. Blob Trigger (`blob_trigger`)
-- **Trigger:** Blob upload to container configured in `function.json` (default: `pdfs/{category}/{name}`).
-- **Action:** Extracts text, chunks it, generates embeddings, saves to MongoDB.
+---
 
-### 2. Chat API (`chat_api`)
-- **Trigger:** HTTP POST to `/api/chat`.
-- **Action:** Embeds user question, searches MongoDB, returns relevant context/answer.
+## ⚙️ Configuration (Environment Variables)
 
-## Deployment
+Whether running locally (`local.settings.json`) or on Azure (Environment Variables), these keys are **REQUIRED**:
 
-```bash
-func azure functionapp publish <APP_NAME>
-## Notes
-
-- PDFs must be uploaded using the following folder structure:
-pdfs/<category>/<filename>.pdf
-
-makefile
-Copy code
-Example:
-pdfs/maths/algebra.pdf
-pdfs/science/physics.pdf
-
-pgsql
-Copy code
-
-- The `<category>` folder name is stored as metadata and used for filtered RAG search.
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "<Common_Connection_String_For_Function_And_Blobs>",
+    "AZURE_STORAGE_CONNECTION_STRING": "<Same_As_Above>",
+    "MONGO_URI": "mongodb://<username>:<password>@<host>:<port>/?ssl=true&retrywrites=false&appName=@pdfragfunction002@",
+    "MONGO_DB_NAME": "PDFRag",
+    "MONGO_COLLECTION_NAME": "ghmdocuments",
+    "AZURE_OPENAI_API_KEY": "<sk-...>",
+    "AZURE_OPENAI_ENDPOINT": "https://<your-resource>.openai.azure.com/",
+    "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-4o",
+    "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-small",
+    "SCM_DO_BUILD_DURING_DEPLOYMENT": "1",
+    "ENABLE_ORYX_BUILD": "true"
+  }
+}
 ```
 
-## New Features (v2)
+> **🔥 Critical for Azure Deployment:**
+> Ensure `SCM_DO_BUILD_DURING_DEPLOYMENT` is set to `1` in Azure Portal Config.
+> Ensure `WEBSITE_RUN_FROM_PACKAGE` is **NOT** set (or deleted) to allow dependency installation.
 
-### 1. Date & Year Extraction
-- Automatically extracts `Year` and `Date` from PDF metadata or content.
-- Defaults to `2025` if not found.
-- Newer documents are preferred in Global Search.
+---
 
-### 2. Category Management
-- **Upload Behavior**: Uploading a file into a category **WIPES** the existing category data in MongoDB and replaces it with the new file(s). This ensures a clean slate for the category.
-- **Manual Delete**: Use the "Delete Category" button in the UI to manually clear all data for a specific category.
+## 📦 How to Deploy (Correctly)
 
-### 3. Global vs Category Search
-- **Category Search**: Scopes the search strictly to the selected category (e.g., "Maths").
-- **Global Search**: If "All" is selected, searches across all documents. Results are ranked by **Relevance** + **Freshness** (Year Boost).
+Simple "Zip Deploy" often fails to install Python dependencies (`pymongo`, `openai`, etc.). Use the following robust command from your terminal:
 
-### 4. Rich Search Results
-- Search results now include detailed metadata:
-  - Source File
-  - Category
-  - Year
-  - Download Link (Direct blob storage access)
+```powershell
+# 1. Navigate to the project root (where requirements.txt is)
+cd path/to/pdfrag1.0
 
+# 2. Force Remote Build (Installs Libraries on Server)
+func azure functionapp publish <YOUR_FUNCTION_APP_NAME> --build remote
+```
+
+**Verification:**
+After deployment, visit: `https://<YOUR_APP>.azurewebsites.net/api/debug_api`
+It should return `{"status": "alive", "imports": { "pymongo": "Success", ... }}`.
+
+---
+
+## 📂 Usage Guide
+
+### 1. Uploading Documents
+-   **Via UI:** Go to `/api/ui/index.html` -> "Upload PDF".
+-   **Via Storage Explorer:** Upload files into a folder structure: `pdfs/<category_name>/filename.pdf`.
+    -   *Example:* `pdfs/maths/algebra_101.pdf`
+    -   *Note:* The `<category>` folder name is automatically used as a metadata filter.
+
+### 2. Chatting
+-   Select a **Scope** (Specific Category or "All").
+-   Ask a question. The system will retrieve relevant chunks and generate an answer with citations.
+
+---
+
+## 🚑 Troubleshooting
+
+| Error | Cause | Fix |
+| :--- | :--- | :--- |
+| **500 Internal Server Error** | Missing Dependencies (`pymongo` not found) | Run `func azure functionapp publish ... --build remote` |
+| **Mongo Connection Timeout** | Firewall Blocking Azure | whitelist `0.0.0.0/0` in MongoDB Atlas OR allow "Azure Services" in Cosmos DB Firewall. |
+| **CORS Error** | Browser blocked from calling API | Azure Portal -> CORS -> Add your domain (or `*` for dev). |
+| **Blob Trigger Not Firing** | Storage Mismatch | Ensure `AzureWebJobsStorage` and `AZURE_STORAGE_CONNECTION_STRING` match. |

@@ -39,7 +39,7 @@ def get_chat_completion(messages: List[Dict[str, str]]) -> str:
             model=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
             messages=messages,
             temperature=0.7,
-            max_tokens=800
+            max_tokens=1500
         )
         return completion.choices[0].message.content
     except Exception as e:

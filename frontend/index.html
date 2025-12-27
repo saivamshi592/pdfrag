@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF RAG Chat</title>
+
     <!-- Base tag ensures relative links work, but we use absolute paths for critics assets -->
     <base href="/api/ui/">
     <!-- MathJax for rendering equations -->
@@ -14,6 +15,57 @@
 </head>
 
 <body>
+
+    <!-- PIN Overlay -->
+    <div id="pin-overlay" style="
+      position: fixed;
+      inset: 0;
+      background: #f5f7fb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    ">
+        <div style="
+        background: white;
+        padding: 32px;
+        width: 360px;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        text-align: center;
+      ">
+            <h2 style="margin-bottom: 8px;">🔐 Access Required</h2>
+            <p style="color:#666;margin-bottom:16px;">
+                Enter PIN to continue
+            </p>
+
+            <input id="pin-input" type="password" placeholder="Enter PIN" style="
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            margin-bottom: 12px;
+          " />
+
+            <button onclick="submitPin()" style="
+            width: 100%;
+            padding: 10px;
+            background: #16a34a;
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+          ">
+                Unlock
+            </button>
+
+            <div id="pin-error" style="color:red;margin-top:10px;display:none;">
+                Invalid PIN
+            </div>
+        </div>
+    </div>
 
     <div class="container">
         <header>
@@ -38,11 +90,14 @@
                     <label for="upload-category">Target Category</label>
                     <select id="upload-category">
                         <option value="uncategorized">Uncategorized</option>
-                        <option value="maths">Maths</option>
-                        <option value="science">Science</option>
-                        <option value="history">History</option>
-                        <option value="manuals">Manuals</option>
+                        <!-- Dynamic categories will be loaded here -->
+                        <option value="new_category_option">+ Add New Category</option>
                     </select>
+                </div>
+
+                <div class="form-group" id="new-category-group" style="display: none;">
+                    <label for="new-category-input">New Category Name</label>
+                    <input type="text" id="new-category-input" placeholder="Enter category name...">
                 </div>
 
                 <button id="btn-upload">Upload Documents</button>
@@ -60,11 +115,11 @@
 
                 <div class="danger-box" style="margin-top:0; border:none; background:none; padding:0;">
                     <div
-                        style="margin-bottom: 20px; padding: 15px; background-color: #fffaf0; border: 1px solid #feebc8; border-radius: 6px;">
-                        <h4 style="margin: 0 0 10px 0; color: #c05621; font-size: 0.95rem;">⚠️ Content Deletion</h4>
-                        <p style="margin:0; font-size: 0.85rem; color: #7b341e;">
-                            Select a deletion mode below. This action removes data from both the search index and
-                            storage.
+                        style="margin-bottom: 20px; padding: 15px; background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        <h4 style="margin: 0 0 10px 0; color: #2d3748; font-size: 0.95rem;">Content Management</h4>
+                        <p style="margin:0; font-size: 0.85rem; color: #4a5568;">
+                            Choose how you want to manage existing categories or PDFs. Selected items will be
+                            permanently removed from the system.
                         </p>
                     </div>
 
@@ -126,10 +181,7 @@
                     <label for="category">Context Scope</label>
                     <select id="category">
                         <option value="">All (Global Search)</option>
-                        <option value="maths">Maths</option>
-                        <option value="science">Science</option>
-                        <option value="history">History</option>
-                        <option value="manuals">Manuals</option>
+                        <!-- Dynamic categories will be loaded here -->
                     </select>
                 </div>
 
@@ -147,6 +199,36 @@
     </div>
 
     <script src="/api/ui/app.js"></script>
+    <script>
+        const REQUIRED_PIN = "4321"; // must match backend
+        const overlay = document.getElementById("pin-overlay");
+        const error = document.getElementById("pin-error");
+
+        // If already authenticated
+        if (sessionStorage.getItem("access_pin") === REQUIRED_PIN) {
+            overlay.style.display = "none";
+        }
+
+        function submitPin() {
+            const pin = document.getElementById("pin-input").value;
+
+            if (pin === REQUIRED_PIN) {
+                sessionStorage.setItem("access_pin", pin);
+                overlay.style.display = "none";
+            } else {
+                error.style.display = "block";
+            }
+        }
+
+        // Attach PIN to every API call
+        const originalFetch = window.fetch;
+        window.fetch = function (url, options = {}) {
+            options.headers = options.headers || {};
+            options.headers["x-access-pin"] =
+                sessionStorage.getItem("access_pin");
+            return originalFetch(url, options);
+        };
+    </script>
 </body>
 
 </html>

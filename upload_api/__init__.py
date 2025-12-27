@@ -7,6 +7,10 @@ from azure.storage.blob import BlobServiceClient, ContentSettings
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Upload API triggered")
 
+    from services.auth import validate_pin
+    if auth_error := validate_pin(req):
+        return auth_error
+
     try:
         # 1. Parse Multipart Data
         # 'category' comes from FormData (req.form), not params
@@ -67,7 +71,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             if blob_client.exists():
                 return func.HttpResponse(
                     json.dumps({
-                        "error": f"File '{filename}' already exists in category '{category}'."
+                        "error": "A document with this name already exists. Please rename the file or remove the existing document before uploading again."
                     }),
                     status_code=409,
                     mimetype="application/json"

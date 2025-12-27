@@ -6,6 +6,10 @@ from services.mongo_store import mongo_store
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('List PDFs API triggered.')
 
+    from services.auth import validate_pin
+    if auth_error := validate_pin(req):
+        return auth_error
+
     try:
         type_param = req.params.get('type')
         

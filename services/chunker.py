@@ -1,6 +1,12 @@
 from typing import List
 
-def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> List[str]:
+
+# Constants for ingestion stability
+CHUNK_SIZE = 2200
+CHUNK_OVERLAP = 200
+MAX_CHUNKS = 1200
+
+def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
     """
     Split text into overlapping chunks.
     """
@@ -15,6 +21,10 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> List[st
     text_len = len(text)
 
     while start < text_len:
+        # Stop if we exceed max chunks
+        if len(chunks) >= MAX_CHUNKS:
+            break
+
         end = min(start + chunk_size, text_len)
         chunk = text[start:end].strip()
         if chunk:
