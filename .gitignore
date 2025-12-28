@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+
+# Azure Functions local stuff
+.python_packages/
+__blobstorage__/
+__queuestorage__/
+local.settings.json
+
+# Environment variables / secrets
+.env
+.env.*
+*.secrets.json
+
+# Azure deployment / logs
+deployment_status_*.txt
+*.log
+
+# Virtual environments
+.venv
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

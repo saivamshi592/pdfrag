@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF RAG Chat</title>
+
+    <!-- Base path for Azure Function UI -->
+    <base href="/api/ui/">
+
+    <!-- MathJax -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <!--  FIX: use RELATIVE path (NOT /api/ui/style.css) -->
+    <style>
+        /* Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+        :root {
+            --primary: #10a37f;
+            /* ChatGPT Teal or close calming green/blue */
+            --primary-hover: #1a7f64;
+            --bg-color: #f7f7f8;
+            --card-bg: #ffffff;
+            --text-main: #202123;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --radius: 6px;
+            --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            /* Align items flex-start to allow scrolling */
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 768px;
+            /* Standard readable width */
+            padding: 3rem 1.5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        /* Accordion / Sections */
+        section {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            margin-bottom: 1rem;
+        }
+
+        .accordion-item {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin-bottom: 15px;
+            box-shadow: var(--shadow);
+        }
+
+        .accordion-header {
+            background: var(--card-bg);
+            padding: 18px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+
+        .accordion-header:hover {
+            background-color: #f9f9f9;
+        }
+
+        .accordion-header h2 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            border: none;
+            padding: 0;
+        }
+
+        .accordion-content {
+            display: none;
+            /* hidden by default */
+            padding: 20px;
+            border-top: 1px solid var(--border);
+            background-color: #fff;
+            animation: fadein 0.2s ease-in-out;
+        }
+
+        .accordion-content.active {
+            display: block;
+        }
+
+        @keyframes fadein {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+
+        input[type="file"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-family: inherit;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            background-color: #fff;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        input[type="file"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(16, 163, 127, 0.1);
+            /* Primary color shadow */
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            line-height: 1.5;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.95rem;
+            font-weight: 500;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: var(--text-muted);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* Status Messages */
+        .status {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            padding: 0.75rem;
+            border-radius: var(--radius);
+            display: none;
+        }
+
+        .status.success {
+            background-color: #ecfdf5;
+            color: #047857;
+            border: 1px solid #d1fae5;
+        }
+
+        .status.error {
+            background-color: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fee2e2;
+        }
+
+        .status.loading {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            border: 1px solid #e5e7eb;
+        }
+
+        /* Answer Area */
+        #answer-section {
+            display: none;
+            margin-top: 25px;
+        }
+
+        #answer-content {
+            background-color: transparent;
+            padding: 10px 0;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-main);
+            border: none;
+        }
+
+        .answer-table-wrapper {
+            overflow-x: auto;
+            margin-top: 15px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+
+        .answer-meta {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Utilities */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Danger Zone - Refined */
+        .danger-box {
+            margin-top: 5px;
+            padding: 15px;
+            border: 1px solid #fee2e2;
+            border-radius: var(--radius);
+            background-color: #fffafa;
+        }
+
+        .danger-box h4 {
+            margin: 0 0 15px 0;
+            color: #b91c1c;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-main);
+            font-size: 0.9rem;
+        }
+
+        .radio-group input[type="radio"] {
+            margin-right: 8px;
+            width: auto;
+            accent-color: var(--primary);
+        }
+
+        /* Helper text */
+        .helper-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Icons (Optional visual cues if needed) */
+        .chevron {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-header.active .chevron {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- PIN Overlay -->
+    <div id="pin-overlay" style="
+      position: fixed;
+      inset: 0;
+      background: #f5f7fb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    ">
+        <div style="
+        background: white;
+        padding: 32px;
+        width: 360px;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        text-align: center;
+      ">
+            <h2 style="margin-bottom: 8px;">Access Required</h2>
+            <p style="color:#666;margin-bottom:16px;">
+                Enter PIN to continue
+            </p>
+
+            <input id="pin-input" type="password" placeholder="Enter PIN" style="
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            margin-bottom: 12px;
+          " />
+
+            <button onclick="submitPin()" style="
+            width: 100%;
+            padding: 10px;
+            background: #16a34a;
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+          ">
+                Unlock
+            </button>
+
+            <div id="pin-error" style="color:red;margin-top:10px;display:none;">
+                Invalid PIN
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>PDF RAG Chat</h1>
+            <p>Upload documents and ask questions powered by AI</p>
+        </header>
+
+        <!-- Data Ingestion -->
+        <div class="accordion-item">
+            <div class="accordion-header" onclick="toggleAccordion(0)">
+                <h2>Data Ingestion</h2>
+                <span class="chevron">▼</span>
+            </div>
+            <div class="accordion-content active">
+                <div class="form-group">
+                    <label for="pdf-file">Select PDF File(s)</label>
+                    <input type="file" id="pdf-file" accept=".pdf" multiple>
+                    <p class="helper-text">You can upload one or multiple PDF files at once.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="upload-category">Target Category</label>
+                    <select id="upload-category">
+                        <option value="uncategorized">Uncategorized</option>
+                        <option value="new_category_option">+ Add New Category</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="new-category-group" style="display:none;">
+                    <label for="new-category-input">New Category Name</label>
+                    <input type="text" id="new-category-input">
+                </div>
+
+                <button id="btn-upload">Upload Documents</button>
+                <div id="upload-status" class="status"></div>
+            </div>
+        </div>
+
+        <!-- Manage Content -->
+        <div class="accordion-item">
+            <div class="accordion-header" onclick="toggleAccordion(1)">
+                <h2>Manage Content</h2>
+                <span class="chevron">▼</span>
+            </div>
+            <div class="accordion-content">
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="deleteOption" value="category" checked>
+                        Delete Entire Category
+                    </label>
+                    <label>
+                        <input type="radio" name="deleteOption" value="pdf">
+                        Delete Specific PDF
+                    </label>
+                </div>
+
+                <div id="del-opt-category">
+                    <div class="form-group">
+                        <label for="del-category-select">Select Category</label>
+                        <select id="del-category-select"></select>
+                    </div>
+                </div>
+
+                <div id="del-opt-pdf" class="hidden">
+                    <div class="form-group">
+                        <label for="del-pdf-cat-select">Category</label>
+                        <select id="del-pdf-cat-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="del-pdf-file-select">PDF</label>
+                        <select id="del-pdf-file-select"></select>
+                    </div>
+                </div>
+
+                <button id="btn-execute-delete" class="btn-danger">
+                    Delete Selected Content
+                </button>
+                <div id="delete-status" class="status"></div>
+            </div>
+        </div>
+
+        <!-- Chat Interface -->
+        <div class="accordion-item">
+            <div class="accordion-header" onclick="toggleAccordion(2)">
+                <h2>Chat Interface</h2>
+                <span class="chevron">▼</span>
+            </div>
+            <div class="accordion-content">
+                <div class="form-group">
+                    <label for="question">Your Question</label>
+                    <textarea id="question"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Context Scope</label>
+                    <select id="category">
+                        <option value="">All (Global Search)</option>
+                    </select>
+                </div>
+
+                <button id="btn-ask">Send Message</button>
+                <div id="chat-status" class="status"></div>
+
+                <div id="answer-section" style="display:none;">
+                    <div id="answer-content"></div>
+                    <div id="answer-sources"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--  FIX: use RELATIVE path -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Configuration ---
+            // Using relative path '/api' allows it to work on localhost and deployed Azure implementations 
+            // where the UI handles the 'api' prefix naturally or is hosted under same domain.
+            const API_BASE_URL = "/api";
+
+            // --- Elements ---
+            const btnUpload = document.getElementById('btn-upload');
+            const btnDeleteCat = document.getElementById('btn-delete-cat');
+            const fileInput = document.getElementById('pdf-file');
+            const uploadCategorySelect = document.getElementById('upload-category'); // New element
+            const uploadStatus = document.getElementById('upload-status');
+            const newCategoryGroup = document.getElementById('new-category-group');
+            const newCategoryInput = document.getElementById('new-category-input');
+
+            const btnAsk = document.getElementById('btn-ask');
+            const txtQuestion = document.getElementById('question');
+            const selCategory = document.getElementById('category'); // Chat category
+            const chatStatus = document.getElementById('chat-status');
+            const answerSection = document.getElementById('answer-section');
+            const answerContent = document.getElementById('answer-content');
+            const answerSources = document.getElementById('answer-sources');
+
+
+            // --- 0. Dynamic Category Loading ---
+            async function loadCategories() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/categories`);
+                    if (!response.ok) return;
+
+                    const data = await response.json();
+                    const categories = data.categories || [];
+
+                    // 1. Populate Upload Dropdown
+                    // Keep "Uncategorized" and "New Category" logic
+                    // We want: [Uncategorized, ...FetchedCats..., + Add New]
+                    uploadCategorySelect.innerHTML = '';
+
+                    // Fixed first option
+                    const optUncat = document.createElement('option');
+                    optUncat.value = "uncategorized";
+                    optUncat.textContent = "Uncategorized";
+                    uploadCategorySelect.appendChild(optUncat);
+
+                    // Dynamic options
+                    categories.forEach(cat => {
+                        if (cat.toLowerCase() === "uncategorized") return; // skip if duplicate
+
+                        const opt = document.createElement('option');
+                        opt.value = cat;
+                        opt.textContent = cat;
+                        uploadCategorySelect.appendChild(opt);
+                    });
+
+                    // Fixed last option
+                    const optNew = document.createElement('option');
+                    optNew.value = "new_category_option";
+                    optNew.textContent = "+ Add New Category";
+                    uploadCategorySelect.appendChild(optNew);
+
+
+                    // 2. Populate Chat Dropdown
+                    // We want: [All (Global), ...FetchedCats...]
+                    selCategory.innerHTML = '';
+
+                    const optAll = document.createElement('option');
+                    optAll.value = "";
+                    optAll.textContent = "All (Global Search)";
+                    selCategory.appendChild(optAll);
+
+                    categories.forEach(cat => {
+                        const opt = document.createElement('option');
+                        opt.value = cat;
+                        opt.textContent = cat;
+                        selCategory.appendChild(opt);
+                    });
+
+                } catch (err) {
+                    console.error("Failed to load categories", err);
+                }
+            }
+
+            // Initial Load
+            loadCategories();
+
+            // Toggle "New Category" input
+            uploadCategorySelect.addEventListener('change', () => {
+                if (uploadCategorySelect.value === 'new_category_option') {
+                    newCategoryGroup.style.display = 'block';
+                    newCategoryInput.focus();
+                } else {
+                    newCategoryGroup.style.display = 'none';
+                }
+            });
+
+            // --- 1. Upload Logic (REAL) ---
+            btnUpload.addEventListener('click', async () => {
+                const files = fileInput.files;
+
+                // Determine category
+                let category = uploadCategorySelect ? uploadCategorySelect.value : "uncategorized";
+                if (category === 'new_category_option') {
+                    const typedCat = newCategoryInput.value.trim();
+                    if (!typedCat) {
+                        showStatus(uploadStatus, 'Please enter a name for the new category.', 'error');
+                        return;
+                    }
+                    category = typedCat; // Use the typed value
+                }
+
+                if (files.length === 0) {
+                    showStatus(uploadStatus, 'Please select at least one PDF file.', 'error');
+                    return;
+                }
+
+                // Validate all are PDFs
+                for (let i = 0; i < files.length; i++) {
+                    if (files[i].type !== 'application/pdf') {
+                        showStatus(uploadStatus, `File '${files[i].name}' is not a PDF.`, 'error');
+                        return;
+                    }
+                }
+
+                showStatus(uploadStatus, `Uploading ${files.length} file(s)...`, 'loading');
+
+                try {
+                    const formData = new FormData();
+                    formData.append('category', category);
+
+                    // Append all files with unique keys to ensure backend captures all
+                    for (let i = 0; i < files.length; i++) {
+                        formData.append(`file_${i}`, files[i]);
+                    }
+
+                    const response = await fetch(`${API_BASE_URL}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(errorText || `Server Error: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    showStatus(uploadStatus, result.message || 'Upload successful!', 'success');
+
+                    // Clear input
+                    // Clear input
+                    fileInput.value = '';
+                    newCategoryInput.value = '';
+
+                    // If a new category was created, we need to refresh the list and select it
+                    if (newCategoryGroup.style.display === 'block') {
+                        newCategoryGroup.style.display = 'none'; // hide input
+
+                        // Reload categories to reflect the new one in all dropdowns
+                        await loadCategories();
+
+                        // Select the newly added category in the dropdown
+                        const options = Array.from(uploadCategorySelect.options);
+                        const matchingOption = options.find(opt => opt.value.toLowerCase() === category.toLowerCase());
+                        if (matchingOption) {
+                            uploadCategorySelect.value = matchingOption.value;
+                        }
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    showStatus(uploadStatus, 'Upload failed: ' + err.message, 'error');
+                }
+            });
+
+
+            // --- 2. Chat Logic (REAL) ---
+            btnAsk.addEventListener('click', async () => {
+                const question = txtQuestion.value.trim();
+                const category = selCategory.value;
+
+                if (!question) {
+                    showStatus(chatStatus, 'Please enter a question.', 'error');
+                    return;
+                }
+
+                showStatus(chatStatus, 'Thinking...', 'loading');
+                answerSection.style.display = 'none';
+                btnAsk.disabled = true;
+
+                try {
+                    const payload = {
+                        question: question,
+                        category: category || null
+                    };
+
+                    const response = await fetch(`${API_BASE_URL}/chat`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || `Server Error: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    // Display Answer
+                    displayAnswer(data);
+                    showStatus(chatStatus, '', 'hidden');
+
+                } catch (err) {
+                    console.error(err);
+                    showStatus(chatStatus, 'Error: ' + err.message, 'error');
+                } finally {
+                    btnAsk.disabled = false;
+                }
+            });
+
+            // --- Helpers ---
+
+            function showStatus(element, message, type) {
+                element.textContent = message;
+                element.className = `status ${type}`;
+                if (type === 'hidden') {
+                    element.style.display = 'none';
+                } else {
+                    element.style.display = 'block';
+                }
+            }
+
+
+
+            // 1. Add Delete Listener
+            // --- 3. Delete Logic (Danger Zone) ---
+            const radioDeleteOptions = document.getElementsByName('deleteOption');
+            const containerDelCategory = document.getElementById('del-opt-category');
+            const containerDelPdf = document.getElementById('del-opt-pdf');
+
+            const delCategorySelect = document.getElementById('del-category-select');
+
+            const delPdfCatSelect = document.getElementById('del-pdf-cat-select');
+            const delPdfFileSelect = document.getElementById('del-pdf-file-select');
+
+            const btnExecuteDelete = document.getElementById('btn-execute-delete');
+            const deleteStatus = document.getElementById('delete-status');
+
+            // Helper to fetch and populate categories
+            async function loadDeleteCategories() {
+                if (!delCategorySelect || !delPdfCatSelect) return;
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/list_pdfs?type=categories`);
+                    if (!response.ok) return; // Silent fail or handle better
+
+                    const data = await response.json();
+                    const categories = data.categories || [];
+
+                    // Populate Dropdowns
+                    [delCategorySelect, delPdfCatSelect].forEach(sel => {
+                        sel.innerHTML = '<option value="">-- Select Category --</option>';
+                        categories.forEach(cat => {
+                            const opt = document.createElement('option');
+                            opt.value = cat;
+                            opt.textContent = cat;
+                            sel.appendChild(opt);
+                        });
+                    });
+
+                } catch (err) {
+                    console.error("Failed to load categories for delete", err);
+                }
+            }
+
+            // Load categories on init
+            loadDeleteCategories();
+
+
+            // Toggle Visibility
+            radioDeleteOptions.forEach(rb => {
+                rb.addEventListener('change', () => {
+                    if (rb.value === 'category') {
+                        containerDelCategory.classList.remove('hidden');
+                        containerDelPdf.classList.add('hidden');
+                    } else {
+                        containerDelCategory.classList.add('hidden');
+                        containerDelPdf.classList.remove('hidden');
+                    }
+                    // Clear status when switching
+                    showStatus(deleteStatus, '', 'hidden');
+                });
+            });
+
+            // Populate PDF Dropdown when Category Changes
+            if (delPdfCatSelect) {
+                delPdfCatSelect.addEventListener('change', async () => {
+                    const category = delPdfCatSelect.value;
+
+                    // Reset PDF select
+                    delPdfFileSelect.innerHTML = '<option value="">(Loading...)</option>';
+                    delPdfFileSelect.disabled = true;
+
+                    if (!category) {
+                        delPdfFileSelect.innerHTML = '<option value="">(Select Category First)</option>';
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/list_pdfs?category=${category}`);
+                        if (!response.ok) throw new Error('Failed to fetch PDFs');
+
+                        const data = await response.json();
+                        const pdfs = data.pdfs || [];
+
+                        delPdfFileSelect.innerHTML = '<option value="">-- Select PDF --</option>';
+                        if (pdfs.length === 0) {
+                            delPdfFileSelect.innerHTML += '<option value="" disabled>No PDFs found</option>';
+                        } else {
+                            pdfs.forEach(pdf => {
+                                const opt = document.createElement('option');
+                                opt.value = pdf;
+                                opt.textContent = pdf;
+                                delPdfFileSelect.appendChild(opt);
+                            });
+                            delPdfFileSelect.disabled = false;
+                        }
+
+                    } catch (err) {
+                        console.error(err);
+                        delPdfFileSelect.innerHTML = '<option value="">Error loading PDFs</option>';
+                    }
+                });
+            }
+
+            // Execute Delete
+            if (btnExecuteDelete) {
+                btnExecuteDelete.addEventListener('click', async () => {
+                    const mode = document.querySelector('input[name="deleteOption"]:checked').value;
+
+                    let category = "";
+                    let pdfName = "";
+                    let confirmMsg = "";
+
+                    if (mode === 'category') {
+                        category = delCategorySelect.value;
+                        if (!category) {
+                            showStatus(deleteStatus, 'Please select a category to wipe.', 'error');
+                            return;
+                        }
+                        confirmMsg = `Are you sure you want to delete ALL data for category '${category}'? This cannot be undone.`;
+                    } else {
+                        category = delPdfCatSelect.value;
+                        pdfName = delPdfFileSelect.value;
+
+                        if (!category) {
+                            showStatus(deleteStatus, 'Please select a category.', 'error');
+                            return;
+                        }
+                        if (!pdfName) {
+                            showStatus(deleteStatus, 'Please select a PDF file.', 'error');
+                            return;
+                        }
+                        confirmMsg = `Are you sure you want to delete PDF '${pdfName}' from '${category}'?`;
+                    }
+
+                    if (!confirm(confirmMsg)) {
+                        return;
+                    }
+
+                    showStatus(deleteStatus, 'Deleting...', 'loading');
+
+                    try {
+                        let url = `${API_BASE_URL}/delete_category?category=${category}`;
+                        if (mode === 'pdf') {
+                            // Send pdf_name in body or query. Let's use query for simplicity if API supports it, 
+                            // otherwise body. I configured backend to check both.
+                            url += `&pdf_name=${encodeURIComponent(pdfName)}`;
+                        }
+
+                        const response = await fetch(url, { method: 'DELETE' });
+
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(errorText || `Server Error: ${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        showStatus(deleteStatus, result.message, 'success');
+
+                        // Refresh list if we just deleted a PDF
+                        if (mode === 'pdf') {
+                            // Trigger change event to reload list
+                            delPdfCatSelect.dispatchEvent(new Event('change'));
+                        }
+
+                        // Reload categories in case we wiped a category entirely (optional, but good UX)
+                        if (mode === 'category') {
+                            // Slight delay to allow backend to update if needed
+                            setTimeout(loadDeleteCategories, 1000);
+                        }
+
+                    } catch (err) {
+                        console.error(err);
+                        showStatus(deleteStatus, 'Delete failed: ' + err.message, 'error');
+                    }
+                });
+            }
+
+            // ...
+
+            function displayAnswer(data) {
+                answerSection.style.display = 'block';
+                answerContent.textContent = data.answer || "No answer received.";
+
+                // Render MathJax if available
+                if (window.MathJax) {
+                    window.MathJax.typesetPromise([answerContent]).then(() => {
+                        // Formatting complete
+                    }).catch((err) => console.error("MathJax error:", err));
+                }
+
+                const results = data.results || [];
+
+                if (results.length > 0) {
+                    // Deduplicate by File + Page for cleaner view
+                    const uniqueMap = new Map();
+                    results.forEach(r => {
+                        const key = `${r.pdf_name}:${r.page}`;
+                        if (!uniqueMap.has(key)) {
+                            uniqueMap.set(key, r);
+                        }
+                    });
+
+                    let html = `
+                <div style="margin-top: 15px;">
+                    <strong>Sources Used:</strong>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em;">
+                        <thead>
+                            <tr style="background: #f4f4f4; text-align: left;">
+                                <th style="border: 1px solid #ddd; padding: 6px;">File</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">Category</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">Year</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">Page</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+                    for (const r of uniqueMap.values()) {
+                        html += `
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 6px;">${r.pdf_name}</td>
+                        <td style="border: 1px solid #ddd; padding: 6px;">${r.category}</td>
+                        <td style="border: 1px solid #ddd; padding: 6px;">${r.year}</td>
+                        <td style="border: 1px solid #ddd; padding: 6px;">${r.page}</td>
+                        <td style="border: 1px solid #ddd; padding: 6px;">
+                            <a href="${r.download_url}" target="_blank" style="color: #007bff; text-decoration: none;">Download</a>
+                        </td>
+                    </tr>
+                `;
+                    }
+
+                    html += `</tbody></table></div>`;
+                    answerSources.innerHTML = html;
+
+                } else if (data.sources && data.sources.length > 0) {
+                    const uniqueSources = [...new Set(data.sources)];
+                    answerSources.innerHTML = `<strong>Sources:</strong> ${uniqueSources.join(', ')}`;
+                } else {
+                    answerSources.textContent = "No sources found.";
+                }
+            }
+
+            // --- Accordion Logic ---
+            window.toggleAccordion = function (index) {
+                const contents = document.querySelectorAll('.accordion-content');
+                const headers = document.querySelectorAll('.accordion-header');
+
+                contents.forEach((content, i) => {
+                    if (i === index) {
+                        // Toggle current
+                        if (content.classList.contains('active')) {
+                            content.classList.remove('active');
+                            headers[i].classList.remove('active');
+                        } else {
+                            content.classList.add('active');
+                            headers[i].classList.add('active');
+                        }
+                    } else {
+                        // Close others
+                        content.classList.remove('active');
+                        headers[i].classList.remove('active');
+                    }
+                });
+            }
+
+        });
+    </script>
+
+    <script>
+        const REQUIRED_PIN = "4321";
+        const overlay = document.getElementById("pin-overlay");
+        const error = document.getElementById("pin-error");
+
+        if (sessionStorage.getItem("access_pin") === REQUIRED_PIN) {
+            overlay.style.display = "none";
+        }
+
+        function submitPin() {
+            const pin = document.getElementById("pin-input").value;
+            if (pin === REQUIRED_PIN) {
+                sessionStorage.setItem("access_pin", pin);
+                overlay.style.display = "none";
+            } else {
+                error.style.display = "block";
+            }
+        }
+
+        const originalFetch = window.fetch;
+        window.fetch = function (url, options = {}) {
+            options.headers = options.headers || {};
+            options.headers["x-access-pin"] =
+                sessionStorage.getItem("access_pin");
+            return originalFetch(url, options);
+        };
+    </script>
+
+</body>
+
+</html>

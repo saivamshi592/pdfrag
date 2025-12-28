@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.env
+.vscode/
+.local.settings.json
+
+# Azurite
+__azurite_db_*
+__blobstorage__
+__queuestorage__
+
+# Logs
+*.log
+
+.venv
