@@ -1,6 +1,7 @@
 import json
 import logging
 import azure.functions as func
+import os
 
 from services.embeddings import get_embedding
 from services.vector_search import search_vectors
@@ -227,6 +228,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # 4️⃣ Build sources (Must be strings for UI compatibility)
         sources = [c.get("pdf_name", "unknown") for c in chunks]
 
+        # Get PIN to authorize download links
+        env_pin = os.environ.get("ACCESS_PIN", "")
+
         # Rich metadata (optional, ensuring no data loss)
         results = [
             {
@@ -234,8 +238,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "category": c.get("category", "unknown"),
                 "page": c.get("page_number", "N/A"),
                 "year": c.get("year", "N/A"),
-                # FIX: Use canonical blob_path if available for reliable downloads
-                "download_url": f"/api/download?blob={c.get('blob_path') or (c.get('category', 'uncategorized') + '/' + c.get('pdf_name', 'unknown'))}"
+                "download_url": c.get("download_url", "#") 
             }
             for c in chunks
         ]

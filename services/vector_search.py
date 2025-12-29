@@ -29,20 +29,8 @@ def search_vectors(
 
     #  Build filter condition
     mongo_filter = {}
-    
-    # Global Search Logic:
-    # If category is "all" (Global Search), we intentionally DO NOT filter by category.
-    # This ensures we retrieve candidates from ALL categories (Science, Maths, Manuals, etc.)
-    # and let the semantic similarity score decide the winner.
-    
-    # 1. Apply Filename Scope (Most Specific) -- Still respected if provided
-    if pdf_name:
-        mongo_filter["pdf_name"] = pdf_name
-
-    # 2. Apply Category Scope -- ONLY if specific (not "all")
-    elif category and category.lower() != "all":
-         # FIX: Use case-insensitive regex to match 'Maths', 'maths', 'MATHS'
-        mongo_filter["category"] = {"$regex": f"^{category.strip()}$", "$options": "i"}
+    if category and category.lower() != "all":
+        mongo_filter["category"] = category.lower()
 
     logging.info(f"Vector search filter: {mongo_filter}")
 
@@ -56,31 +44,5 @@ def search_vectors(
 
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # Progressive Deep Search Ranking
-    # 1. Return Top 1 (Best Match) with lenient threshold to ensure an answer 
-    # 2. Return Top 2-3 with moderate threshold for context
-    # 3. Return Top 4+ only if high relevance (strict)
-    
-    results = []
-    for i, (score, doc) in enumerate(scored):
-        if len(results) >= top_k:
-            break
-
-        # Tier 1: Single Best Match (Top 1)
-        # prioritization: explicit > semantic > keyword
-        if i == 0:
-            if score >= 0.25: # Lenient for the "best" candidate
-                results.append(doc)
-            continue
-
-        # Tier 2: Core Context (Top 2-3)
-        if i < 3:
-            if score >= 0.28: # Moderate relevance
-                results.append(doc)
-            continue
-
-        # Tier 3: Extended Context (Top 4+)
-        if score >= 0.30: # Strict relevance (original threshold)
-            results.append(doc)
-
-    return results
+    # return only relevant chunks
+    return [doc for score, doc in scored[:top_k] if score > 0.15]

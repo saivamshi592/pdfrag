@@ -18,7 +18,7 @@ def validate_pin(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json"
         )
 
-    client_pin = req.headers.get("x-access-pin")
+    client_pin = req.headers.get("x-access-pin") or req.params.get("pin")
 
     if client_pin == env_pin:
         return None

@@ -149,22 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear input
             // Clear input
             fileInput.value = '';
-            newCategoryInput.value = '';
-
-            // If a new category was created, we need to refresh the list and select it
-            if (newCategoryGroup.style.display === 'block') {
-                newCategoryGroup.style.display = 'none'; // hide input
-
-                // Reload categories to reflect the new one in all dropdowns
-                await loadCategories();
-
-                // Select the newly added category in the dropdown
-                const options = Array.from(uploadCategorySelect.options);
-                const matchingOption = options.find(opt => opt.value.toLowerCase() === category.toLowerCase());
-                if (matchingOption) {
-                    uploadCategorySelect.value = matchingOption.value;
-                }
-            }
 
         } catch (err) {
             console.error(err);
